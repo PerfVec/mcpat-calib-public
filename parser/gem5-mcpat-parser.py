@@ -108,8 +108,8 @@ def read_boom(boom_paramsFile):
 
 
 def generate_template(output_file):
-    num_cores = len(config["system"]["cpu"])
-    private_l2 = config["system"]["cpu"][0].has_key('l2cache')
+    num_cores = len(config["system"]["cpu_cluster"]["cpus"])
+    private_l2 = config["system"]["cpu_cluster"].has_key('l2')
     shared_l2 = config["system"].has_key('l2')
     if private_l2:
         num_l2 = num_cores
@@ -154,7 +154,7 @@ def generate_template(output_file):
                     childValue = coreChild.attrib.get("value")
                     childName = coreChild.attrib.get("name")
                     if isinstance(childName, basestring) and childName == "x86":
-                        if config["system"]["cpu"][coreCounter]["isa"][0]["type"] == "X86ISA":
+                        if config["system"]["cpu_cluster"]["cpus"][coreCounter]["isa"][0]["type"] == "X86ISA":
                             childValue = "1"
                         else:
                             childValue = "0"
@@ -229,11 +229,22 @@ def get_config_value(confStr):
     curr_conf = config
     curr_hierarchy = ""
     for x in split_conf:
+        x = u'{}'.format(x)
         curr_hierarchy += x
+        #print("curr_conf: ", curr_conf)
+        #print("x: ", x)
         if x.isdigit():
             curr_conf = curr_conf[int(x)] 
         elif x in curr_conf:
             curr_conf = curr_conf[x]
+        elif isinstance(curr_conf, list):
+            if len(curr_conf) == 1:
+                if x in curr_conf[0]:
+                    curr_conf = curr_conf[0][x]
+                else:
+                    print("x: ", x, " is not in curr_conf")
+                    print("keys: ", curr_conf[0].keys())
+                    exit(0)
     if(curr_conf == None):
         return 0
         curr_hierarchy += "."
@@ -253,9 +264,13 @@ def write_mcpat_xml(output_path):
             for conf in allConfs:
                 confValue = get_config_value(conf)
                 if type(confValue) == dict or type(confValue) == list :
+                    #print("conf: ", conf, ", confValue: ", confValue)
                     confValue = 0
                     print("[WARN]: %s does not exist in gem5 config." % conf)
                 value = re.sub("config."+ conf, str(confValue), value)
+
+                #print("conf: ", conf, ", value: ", value)
+
             if "," in value:
                 exprs = re.split(',', value)
                 for i in range(len(exprs)):
@@ -291,6 +306,7 @@ def write_mcpat_xml(output_path):
                     print("[WARN]: %s does not exist in stats." % allStats[i])
 
             if 'config' not in expr and 'stats' not in expr:
+                #print("expr: ", expr)
                 try:
                     stat.attrib["value"] = str(eval(expr))
                 except ZeroDivisionError as e:
